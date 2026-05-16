@@ -1,3 +1,11 @@
+# IMPORTANT: rdesktop is no longer maintained
+
+Please, beware that this project is no longer maintained and hadn't received
+a patch in many years. There are reported security vulnerabilities, yet those
+haven't been reviewed.
+
+Use with caution and use it at your own risk.
+
 # rdesktop - A Remote Desktop Protocol client
 
 rdesktop is an open source client for Microsoft's RDP protocol. It is
