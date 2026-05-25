@@ -10,3 +10,10 @@ rdesktop*.tar.gz
 aclocal.m4
 *.patch
 *.o
+tests/resize
+tests/rdp
+tests/xwin
+tests/parse_geometry
+tests/utils
+tests/mcs
+tests/asn

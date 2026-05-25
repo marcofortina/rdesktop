@@ -542,6 +542,7 @@ logger_set_subjects(char *subjects)
 	free(pcs);
 }
 
+#if !defined(RDESKTOP_TEST_NO_CERTIFICATE_EXCEPTION) || defined(RDESKTOP_TEST_CERTIFICATE_HELPERS)
 static size_t
 _utils_data_to_hex(uint8 *data, size_t len, char *out, size_t size)
 {
@@ -565,6 +566,10 @@ _utils_data_to_hex(uint8 *data, size_t len, char *out, size_t size)
 
 	return needed;
 }
+#endif
+
+/* Certificate exception handling is not needed by unit tests that include utils.c directly. */
+#ifndef RDESKTOP_TEST_NO_CERTIFICATE_EXCEPTION
 
 static size_t
 _utils_oid_to_string(const char *oid, char *out, size_t size)
@@ -1119,3 +1124,5 @@ utils_cert_handle_exception(gnutls_session_t session, unsigned int status,
 	gnutls_x509_crt_deinit(cert);
 	return 0;
 }
+
+#endif /* RDESKTOP_TEST_NO_CERTIFICATE_EXCEPTION */

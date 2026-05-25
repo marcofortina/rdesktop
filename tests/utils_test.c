@@ -9,8 +9,21 @@ AfterEach(Utils) {};
 
 /* globals */
 char g_codepage[16];
+RD_BOOL g_use_gui_prompts;
+RD_BOOL g_gui_prompt_cancelled;
 
+#define RDESKTOP_TEST_NO_CERTIFICATE_EXCEPTION
+#define RDESKTOP_TEST_CERTIFICATE_HELPERS
 #include "../utils.c"
+#undef RDESKTOP_TEST_CERTIFICATE_HELPERS
+#undef RDESKTOP_TEST_NO_CERTIFICATE_EXCEPTION
+
+RD_BOOL
+xgui_choice_dialog(const char *title, const char *message, const char *accept_label,
+                   const char *reject_label)
+{
+	return mock(title, message, accept_label, reject_label);
+}
 
 /* malloc; exit if out of memory */
 void *

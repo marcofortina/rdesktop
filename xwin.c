@@ -2086,6 +2086,7 @@ ui_get_screen_size(uint32 * width, uint32 * height)
 	*height = HeightOfScreen(g_screen);
 }
 
+#ifdef HAVE_XRANDR
 static void
 xwin_normalize_monitor_layout(RDP_MONITOR_LAYOUT *monitors, uint32 monitor_count,
                               uint32 *desktop_width, uint32 *desktop_height)
@@ -2130,7 +2131,6 @@ xwin_normalize_monitor_layout(RDP_MONITOR_LAYOUT *monitors, uint32 monitor_count
 	*desktop_height = max_bottom - min_top + 1;
 }
 
-#ifdef HAVE_XRANDR
 static RD_BOOL
 xwin_get_xrandr_monitor_layout(RDP_MONITOR_LAYOUT *monitors, uint32 max_monitors,
                                uint32 *monitor_count, uint32 *desktop_width,
@@ -2790,8 +2790,10 @@ xwin_center_initial_window(uint32 width, uint32 height)
 static void
 xwin_apply_window_icon(Window wnd)
 {
+#ifdef HAVE_LIBPNG
 	uint32 width, height;
 	char *rgba_data;
+#endif
 
 	if (g_window_icon_file == NULL)
 		return;
@@ -2805,6 +2807,7 @@ xwin_apply_window_icon(Window wnd)
 	xfree(rgba_data);
 	logger(GUI, Debug, "Loaded window icon '%s' (%ux%u)", g_window_icon_file, width, height);
 #else
+	(void) wnd;
 	logger(GUI, Warning, "Custom window icons require libpng support");
 #endif
 }

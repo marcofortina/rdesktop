@@ -19,6 +19,22 @@ RD_BOOL g_using_full_workarea;
 
 #define always_expect_error_log() always_expect(logger, when(lvl, is_equal_to(Error)))
 
+int
+xgui_startup(int *argc, char ***argv)
+{
+	(void) argc;
+	(void) argv;
+	return 0;
+}
+
+void
+xgui_message_dialog(const char *title, const char *message, const char *button_label)
+{
+	(void) title;
+	(void) message;
+	(void) button_label;
+}
+
 /* Boilerplate */
 Describe(ParseGeometry);
 BeforeEach(ParseGeometry) {};
@@ -265,17 +281,17 @@ Ensure(ParseGeometry, ParsesRdpFileSettings)
   g_rdpclip = True;
 
   write_test_rdp_file(path, sizeof(path),
-                      "full address:s:rdp.example.com\\n"
-                      "server port:i:3390\\n"
-                      "username:s:alice\\n"
-                      "domain:s:EXAMPLE\\n"
-                      "desktopwidth:i:1280\\n"
-                      "desktopheight:i:720\\n"
-                      "session bpp:i:24\\n"
-                      "alternate shell:s:notepad.exe\\n"
-                      "shell working directory:s:C:\\\\Temp\\n"
-                      "keyboard layout:s:en-us\\n"
-                      "redirectclipboard:i:0\\n");
+                      "full address:s:rdp.example.com\n"
+                      "server port:i:3390\n"
+                      "username:s:alice\n"
+                      "domain:s:EXAMPLE\n"
+                      "desktopwidth:i:1280\n"
+                      "desktopheight:i:720\n"
+                      "session bpp:i:24\n"
+                      "alternate shell:s:notepad.exe\n"
+                      "shell working directory:s:C:\\Temp\n"
+                      "keyboard layout:s:en-us\n"
+                      "redirectclipboard:i:0\n");
 
   assert_that(parse_rdp_file(path, server, sizeof(server), domain, sizeof(domain), shell,
                              sizeof(shell), directory, sizeof(directory), False, False,
@@ -317,15 +333,15 @@ Ensure(ParseGeometry, RdpFileDoesNotOverrideExplicitOptions)
   g_fullscreen = False;
 
   write_test_rdp_file(path, sizeof(path),
-                      "full address:s:rdp.example.com\\n"
-                      "username:s:file-user\\n"
-                      "domain:s:FILE\\n"
-                      "desktopwidth:i:1280\\n"
-                      "desktopheight:i:720\\n"
-                      "session bpp:i:24\\n"
-                      "alternate shell:s:file-shell\\n"
-                      "shell working directory:s:file-dir\\n"
-                      "keyboard layout:s:file-keymap\\n");
+                      "full address:s:rdp.example.com\n"
+                      "username:s:file-user\n"
+                      "domain:s:FILE\n"
+                      "desktopwidth:i:1280\n"
+                      "desktopheight:i:720\n"
+                      "session bpp:i:24\n"
+                      "alternate shell:s:file-shell\n"
+                      "shell working directory:s:file-dir\n"
+                      "keyboard layout:s:file-keymap\n");
 
   assert_that(parse_rdp_file(path, server, sizeof(server), domain, sizeof(domain), shell,
                              sizeof(shell), directory, sizeof(directory), True, False,
