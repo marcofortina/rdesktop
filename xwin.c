@@ -2611,12 +2611,16 @@ handle_button_event(XEvent xevent, RD_BOOL down)
 		}
 	}
 
-	/* Ignore mouse scroll button release event which will be handled as an additional
-	 * scrolldown event on the Windows side.
+	/*
+	 * Wheel events encode the wheel delta in the low bits and must not carry
+	 * the normal mouse-button DOWN flag.  Also ignore X11 wheel button-release
+	 * events, which would otherwise be sent as a second wheel movement.
 	 */
-	if (!down && (button == MOUSE_FLAG_BUTTON4 || button == MOUSE_FLAG_BUTTON5))
+	if (button == MOUSE_FLAG_BUTTON4 || button == MOUSE_FLAG_BUTTON5)
 	{
-		return;
+		if (!down)
+			return;
+		flags &= ~MOUSE_FLAG_DOWN;
 	}
 
 	if (xevent.xmotion.window == g_wnd)
@@ -3497,12 +3501,13 @@ get_pixel(uint32 idx, uint8 * andmask, uint8 * xormask, int bpp, uint8 * xor_fla
 			offs = idx;
 			argb = GET_BIT(xormask, idx);
 			alpha = GET_BIT(andmask, idx) ? 0x00 : 0xff;
-			if (!GET_BIT(andmask, idx) == 0x00 && argb)
+			if (GET_BIT(andmask, idx) && argb)
 			{
-				// If we have an xor bit is high and
-				// andmask bit is low, we should
-				// render a black pixel due to we can
-				// not xor blit in X11.
+				/*
+				 * AND=1/XOR=1 is an XOR cursor pixel.  Xcursor cannot
+				 * invert the framebuffer, so render an opaque black pixel
+				 * and request a white outline below.
+				 */
 				argb = 0xff000000;
 				*xor_flag = 1;
 			}
@@ -3516,6 +3521,11 @@ get_pixel(uint32 idx, uint8 * andmask, uint8 * xormask, int bpp, uint8 * xor_fla
 			SPLITCOLOUR16(*((uint16 *) pxor), pc);
 			alpha = GET_BIT(andmask, idx) ? 0x00 : 0xff;
 			argb = (alpha << 24) | (pc.red << 16) | (pc.green << 8) | pc.blue;
+			if (GET_BIT(andmask, idx) && (argb & 0x00ffffff))
+			{
+				argb = 0xff000000;
+				*xor_flag = 1;
+			}
 			break;
 
 		case 24:
@@ -3523,6 +3533,11 @@ get_pixel(uint32 idx, uint8 * andmask, uint8 * xormask, int bpp, uint8 * xor_fla
 			pxor = xormask + offs;
 			alpha = GET_BIT(andmask, idx) ? 0x00 : 0xff;
 			argb = (alpha << 24) | (pxor[2] << 16) | (pxor[1] << 8) | pxor[0];
+			if (GET_BIT(andmask, idx) && (argb & 0x00ffffff))
+			{
+				argb = 0xff000000;
+				*xor_flag = 1;
+			}
 			break;
 
 		case 32:
