@@ -3333,11 +3333,10 @@ ui_move_pointer(int x, int y)
 	XWarpPointer(g_display, g_wnd, g_wnd, 0, 0, 0, 0, x, y);
 }
 
-RD_HBITMAP
-ui_create_bitmap(int width, int height, uint8 * data)
+static RD_BOOL
+ui_put_image_to_pixmap(Pixmap pixmap, int width, int height, uint8 * data)
 {
 	XImage *image;
-	Pixmap bitmap;
 	uint8 *tdata;
 	int bitmap_pad;
 
@@ -3354,16 +3353,46 @@ ui_create_bitmap(int width, int height, uint8 * data)
 	}
 
 	tdata = (g_owncolmap ? data : translate_image(width, height, data));
-	bitmap = XCreatePixmap(g_display, g_wnd, width, height, g_depth);
 	image = XCreateImage(g_display, g_visual, g_depth, ZPixmap, 0,
 			     (char *) tdata, width, height, bitmap_pad, 0);
 
-	XPutImage(g_display, bitmap, g_create_bitmap_gc, image, 0, 0, 0, 0, width, height);
+	if (!image)
+	{
+		if (tdata != data)
+			xfree(tdata);
+		return False;
+	}
+
+	XPutImage(g_display, pixmap, g_create_bitmap_gc, image, 0, 0, 0, 0, width, height);
 
 	XFree(image);
 	if (tdata != data)
 		xfree(tdata);
+	return True;
+}
+
+RD_HBITMAP
+ui_create_bitmap(int width, int height, uint8 * data)
+{
+	Pixmap bitmap;
+
+	bitmap = XCreatePixmap(g_display, g_wnd, width, height, g_depth);
+	if (!ui_put_image_to_pixmap(bitmap, width, height, data))
+	{
+		XFreePixmap(g_display, bitmap);
+		return NULL;
+	}
+
 	return (RD_HBITMAP) bitmap;
+}
+
+RD_BOOL
+ui_update_bitmap(RD_HBITMAP bmp, int width, int height, uint8 * data)
+{
+	if (!bmp)
+		return False;
+
+	return ui_put_image_to_pixmap((Pixmap) bmp, width, height, data);
 }
 
 void
@@ -4304,11 +4333,10 @@ ui_draw_text(uint8 font, uint8 flags, uint8 opcode, int mixmode, int x, int y,
 	     int boxx, int boxy, int boxcx, int boxcy, BRUSH * brush,
 	     uint32 bgcolour, uint32 fgcolour, uint8 * text, uint8 length)
 {
-	XWindowAttributes attr;
+	uint32 wnd_width = g_window_width ? g_window_width : g_session_width;
+
 	UNUSED(opcode);
 	UNUSED(brush);
-
-	XGetWindowAttributes(g_display, g_wnd, &attr);
 
 	/* TODO: use brush appropriately */
 
@@ -4321,8 +4349,8 @@ ui_draw_text(uint8 font, uint8 flags, uint8 opcode, int mixmode, int x, int y,
 	/* Sometimes, the boxcx value is something really large, like
 	   32691. This makes XCopyArea fail with Xvnc. The code below
 	   is a quick fix. */
-	if (boxx + boxcx > attr.width)
-		boxcx = attr.width - boxx;
+	if (wnd_width > 0 && boxx + boxcx > (int) wnd_width)
+		boxcx = wnd_width - boxx;
 
 	if (boxcx > 1)
 	{
