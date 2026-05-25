@@ -116,6 +116,9 @@ RD_BOOL g_rdpclip = True;
 RD_BOOL g_console_session = False;
 RD_BOOL g_shadow_session = False;
 RD_BOOL g_restricted_admin = False;
+RD_BOOL g_remote_guard = False;
+char *g_remote_guard_helper = NULL;
+char *g_remote_guard_server = NULL;
 char *g_window_icon_file = NULL;
 RD_BOOL g_numlock_sync = False;
 RD_BOOL g_lspci_enabled = False;
@@ -273,6 +276,8 @@ usage(char *program)
 	fprintf(stderr, "   -0, --admin, /admin: attach to console/admin session\n");
 	fprintf(stderr, "       --shadow <id>, /shadow:<id>: shadow an existing session id\n");
 	fprintf(stderr, "   --restricted-admin, /restrictedAdmin: use Restricted Admin mode (implies -0)\n");
+	fprintf(stderr, "   --remote-guard, /remoteGuard: request Remote Credential Guard over CredSSP\n");
+	fprintf(stderr, "   --remote-guard-helper <cmd>: helper for RDPEAR package calls\n");
 	fprintf(stderr, "   -4: use RDP version 4\n");
 	fprintf(stderr, "   -5: use RDP version 5 (default)\n");
 #ifdef WITH_SCARD
@@ -1241,6 +1246,25 @@ main(int argc, char *argv[])
 			g_console_session = True;
 			argv[c] = "-0";
 		}
+		else if (!strcmp(argv[c], "--remote-guard") ||
+		         !strcmp(argv[c], "/remoteGuard"))
+		{
+			g_remote_guard = True;
+			argv[c] = "-5";
+		}
+		else if (!strcmp(argv[c], "--remote-guard-helper"))
+		{
+			if (c + 1 >= argc)
+			{
+				logger(Core, Error, "--remote-guard-helper requires a command");
+				return EX_USAGE;
+			}
+
+			g_remote_guard = True;
+			g_remote_guard_helper = argv[c + 1];
+			argv[c] = "-5";
+			argv[++c] = "-5";
+		}
 	}
 
 	while ((c = getopt(argc, argv,
@@ -1785,6 +1809,21 @@ main(int argc, char *argv[])
 		strncat(g_title, server, sizeof(g_title) - sizeof("rdesktop - "));
 	}
 
+	if (g_restricted_admin && g_remote_guard)
+	{
+		logger(Core, Error, "Restricted Admin mode and Remote Credential Guard are mutually exclusive");
+		return EX_USAGE;
+	}
+
+	if (g_remote_guard && g_use_password_as_pin)
+	{
+		logger(Core, Error, "Remote Credential Guard cannot be used with smartcard PIN authentication");
+		return EX_USAGE;
+	}
+
+	if (g_remote_guard && (g_remote_guard_helper == NULL || g_remote_guard_helper[0] == 0))
+		g_remote_guard_helper = "rdesktop-rdpear-helper";
+
 #ifdef WITH_SCARD
 	if (g_restricted_admin && g_use_password_as_pin)
 	{
@@ -1838,6 +1877,8 @@ main(int argc, char *argv[])
 	rdpdr_init();
 
 	dvc_init();
+	if (!rdpear_init())
+		return EX_PROTOCOL;
 #ifdef WITH_RDPSND
 	rdpsnd_input_init();
 #endif
@@ -1870,6 +1911,12 @@ main(int argc, char *argv[])
 
 		utils_apply_session_size_limitations(&g_requested_session_width,
 						     &g_requested_session_height);
+
+		if (g_remote_guard)
+		{
+			xfree(g_remote_guard_server);
+			g_remote_guard_server = xstrdup(server);
+		}
 
 		if (g_shadow_session)
 		{
