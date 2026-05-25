@@ -103,6 +103,10 @@ RD_BOOL g_desktop_save = True;	/* desktop save order */
 RD_BOOL g_polygon_ellipse_orders = True;	/* polygon / ellipse orders */
 RD_BOOL g_fullscreen = False;
 RD_BOOL g_multimon = False;
+RD_BOOL g_use_gui_prompts = False;
+RD_BOOL g_gui_prompt_cancelled = False;
+static const char *g_launcher_program = NULL;
+static const char *g_last_disconnect_reason_text = "Unknown reason";
 RD_BOOL g_extended_client_data_supported = False;
 RD_BOOL g_grab_keyboard = True;
 RD_BOOL g_local_cursor = False;
@@ -180,6 +184,8 @@ usage(char *program)
 	fprintf(stderr, "See http://www.rdesktop.org/ for more information.\n\n");
 
 	fprintf(stderr, "Usage: %s [options] server[:port]\n", program);
+	fprintf(stderr, "       %s [options] file.rdp\n", program);
+	fprintf(stderr, "       %s without arguments opens the X11 connection launcher.\n", program);
 	fprintf(stderr, "   -u: user name\n");
 	fprintf(stderr, "   -d: domain\n");
 	fprintf(stderr, "   -s: shell / seamless application to start remotely\n");
@@ -507,7 +513,24 @@ handle_disconnect_reason(RD_BOOL deactivated, uint16 reason)
 		fprintf(stderr, "disconnect: %s.\n", text);
 	}
 
+	g_last_disconnect_reason_text = text;
 	return retval;
+}
+
+static int
+reopen_launcher_from_gui(const char *title, const char *message)
+{
+	char *launcher_argv[2];
+
+	if (message != NULL && *message != '\0')
+		xgui_message_dialog(title != NULL ? title : "rdesktop connection error", message, "OK");
+
+	logger(Core, Notice, "Reopening connection launcher.");
+	launcher_argv[0] = (char *) (g_launcher_program != NULL ? g_launcher_program : "rdesktop");
+	launcher_argv[1] = NULL;
+	execvp(launcher_argv[0], launcher_argv);
+	logger(Core, Error, "Failed to reopen connection launcher");
+	return EX_PROTOCOL;
 }
 
 static void
@@ -1090,6 +1113,8 @@ main(int argc, char *argv[])
 	char *rdpsnd_optarg = NULL;
 #endif
 
+	g_launcher_program = argv[0];
+
 	/* setup debug logging from environment */
 	logger_set_subjects(getenv("RDESKTOP_DEBUG"));
 
@@ -1110,6 +1135,20 @@ main(int argc, char *argv[])
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = 0;
 	sigaction(SIGPIPE, &act, NULL);
+
+	if (argc == 1)
+	{
+		int gui_result = xgui_startup(&argc, &argv);
+
+		if (gui_result == 0)
+			return EX_OK;
+		if (gui_result < 0)
+		{
+			usage(argv[0]);
+			return EX_USAGE;
+		}
+		g_use_gui_prompts = True;
+	}
 
 	/* setup default flags for TS_INFO_PACKET */
 	flags = RDP_INFO_MOUSE | RDP_INFO_DISABLECTRLALTDEL
@@ -1840,11 +1879,25 @@ main(int argc, char *argv[])
 
 		pstcache_set_namespace(server, g_tcp_port_rdp, domain, g_username);
 
+		g_gui_prompt_cancelled = False;
 		if (!rdp_connect
 		    (server, flags, domain, g_password, shell, directory, g_reconnect_loop))
 		{
+			char message[512];
 
 			g_network_error = False;
+
+			if (g_use_gui_prompts)
+			{
+				if (g_gui_prompt_cancelled)
+					return reopen_launcher_from_gui(NULL, NULL);
+
+				snprintf(message, sizeof(message),
+				         "Unable to establish the Remote Desktop connection.\n\n"
+				         "Check the computer name, user name, password and selected options, "
+				         "then try again.");
+				return reopen_launcher_from_gui("rdesktop connection failed", message);
+			}
 
 			if (g_reconnect_loop == False)
 			{
@@ -1998,7 +2051,28 @@ main(int argc, char *argv[])
 	if (g_user_quit)
 		return EXRD_WINDOW_CLOSED;
 
-	return handle_disconnect_reason(deactivated, ext_disc_reason);
+	{
+		int retval;
+
+		retval = handle_disconnect_reason(deactivated, ext_disc_reason);
+		if (g_use_gui_prompts && retval != EX_OK && retval != EXRD_WINDOW_CLOSED &&
+		    ext_disc_reason != ERRINFO_LOGOFF_BYUSER &&
+		    ext_disc_reason != ERRINFO_RPC_INITIATED_DISCONNECT_BYUSER)
+		{
+			char message[512];
+
+			snprintf(message, sizeof(message),
+			         "The Remote Desktop connection ended with an error.\n\n"
+			         "%s.\n\n"
+			         "The connection launcher will reopen so you can update the "
+			         "server, credentials or connection options.",
+			         g_last_disconnect_reason_text != NULL ?
+			         g_last_disconnect_reason_text : "Unknown reason");
+			return reopen_launcher_from_gui("rdesktop connection error", message);
+		}
+
+		return retval;
+	}
 
 	if (g_redirect_username)
 		xfree(g_redirect_username);
